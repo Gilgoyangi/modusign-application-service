@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 설정 페이지 - 지원서 서비스</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .form-input {
+            transition: all 0.3s ease;
+        }
+        .form-input:focus {
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.5);
+            border-color: #3b82f6;
+        }
+        .btn-primary {
+            transition: background-color 0.3s ease;
+        }
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-3xl mx-auto p-6 md:p-8">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="p-8">
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">지원서 서비스 관리자 설정</h1>
+                <p class="text-gray-500 mb-8">모두싸인 템플릿 정보를 연동하여 지원서 페이지를 생성합니다.</p>
+
+                <!-- API 및 템플릿 정보 입력 섹션 -->
+                <div id="api-section" class="space-y-6">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">1. 중요 정보 입력</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="modusign-api-key" class="block text-sm font-medium text-gray-600 mb-1">모두싸인 API Key</label>
+                                <input type="password" id="modusign-api-key" class="form-input block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none" placeholder="API Key를 입력하세요">
+                            </div>
+                            <div>
+                                <label for="template-id" class="block text-sm font-medium text-gray-600 mb-1">모두싸인 템플릿 ID</label>
+                                <input type="text" id="template-id" class="form-input block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none" placeholder="템플릿 ID를 입력하세요">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                         <label for="service-account-email" class="block text-sm font-medium text-gray-600 mb-1">Google 서비스 계정 이메일</label>
+                         <input type="email" id="service-account-email" class="form-input block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none" placeholder="your-account@...gserviceaccount.com">
+                    </div>
+                    <div>
+                        <label for="google-private-key" class="block text-sm font-medium text-gray-600 mb-1">Google 비공개 키 (JSON 파일 내용)</label>
+                        <textarea id="google-private-key" rows="5" class="form-input block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none" placeholder="다운로드한 JSON 파일을 열어 전체 내용을 붙여넣으세요"></textarea>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button id="fetch-template-btn" class="btn-primary bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center">
+                            <span id="fetch-btn-text">템플릿 정보 불러오기</span>
+                            <div id="fetch-loader" class="loader w-4 h-4 rounded-full border-2 border-t-transparent ml-2 hidden"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 데이터 라벨 선택 섹션 (초기에는 숨김) -->
+                <div id="datalabel-section" class="hidden mt-10">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">2. 고유값(식별자) 필드 선택</h2>
+                    <p class="text-sm text-gray-500 mb-4">지원자를 구분할 고유한 항목을 선택해주세요. (예: 지원자명 + 연락처)</p>
+                    <div id="datalabel-list" class="space-y-3">
+                        <!-- 데이터 라벨이 여기에 동적으로 추가됩니다. -->
+                    </div>
+                    <div class="mt-8 flex justify-end">
+                         <button id="save-config-btn" class="btn-primary bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center">
+                            <span id="save-btn-text">설정 저장 및 페이지 생성</span>
+                            <div id="save-loader" class="loader w-4 h-4 rounded-full border-2 border-t-transparent ml-2 hidden"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 상태 메시지 영역 -->
+            <div id="status-message" class="px-8 py-4 text-center text-sm font-medium hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 요소 선택 ---
+        const fetchBtn = document.getElementById('fetch-template-btn');
+        const saveBtn = document.getElementById('save-config-btn');
+        const datalabelSection = document.getElementById('datalabel-section');
+        const datalabelList = document.getElementById('datalabel-list');
+        const statusMessage = document.getElementById('status-message');
+
+        // --- 이벤트 리스너 ---
+        fetchBtn.addEventListener('click', handleFetchTemplate);
+        saveBtn.addEventListener('click', handleSaveConfig);
+        
+        // --- 함수 정의 ---
+
+        /**
+         * '템플릿 정보 불러오기' 버튼 클릭 시 실행되는 함수
+         */
+        function handleFetchTemplate() {
+            // 1. 입력 값 가져오기
+            const apiKey = document.getElementById('modusign-api-key').value;
+            const templateId = document.getElementById('template-id').value;
+            
+            // 2. 유효성 검사
+            if (!apiKey || !templateId) {
+                showMessage('모두싸인 API Key와 템플릿 ID를 모두 입력해주세요.', 'error');
+                return;
+            }
+
+            // 3. 로딩 상태 표시
+            toggleLoader('fetch', true);
+            showMessage('템플릿 정보를 불러오는 중입니다...', 'info');
+
+            // 4. (임시) API 호출 시뮬레이션
+            // 실제로는 이 부분에서 Netlify 서버리스 함수를 호출하여 모두싸인 API와 통신하게 됩니다.
+            // 지금은 개발 초기 단계이므로, 성공적인 응답을 받았다고 가정하고 가짜 데이터를 사용합니다.
+            setTimeout(() => {
+                const fakeResponse = {
+                    success: true,
+                    data: {
+                        requesterInputs: [
+                            { dataLabel: '지원자명' },
+                            { dataLabel: '연락처' },
+                            { dataLabel: '이메일' },
+                            { dataLabel: '지원동기' }
+                        ],
+                        participants: [
+                            {
+                                role: '지원자',
+                                attachmentRequests: [
+                                    { dataLabel: '포트폴리오' },
+                                    { dataLabel: '경력증명서' }
+                                ]
+                            }
+                        ]
+                    }
+                };
+
+                if (fakeResponse.success) {
+                    const allDataLabels = [
+                        ...fakeResponse.data.requesterInputs.map(item => item.dataLabel),
+                        ...fakeResponse.data.participants[0].attachmentRequests.map(item => item.dataLabel)
+                    ];
+                    
+                    displayDataLabels(allDataLabels);
+                    showMessage('템플릿 정보를 성공적으로 불러왔습니다. 고유값을 선택해주세요.', 'success');
+                    datalabelSection.classList.remove('hidden');
+                } else {
+                    showMessage('템플릿 정보를 불러오는 데 실패했습니다. API Key와 템플릿 ID를 확인해주세요.', 'error');
+                }
+                
+                toggleLoader('fetch', false);
+            }, 2000); // 2초 지연 시뮬레이션
+        }
+
+        /**
+         * '설정 저장' 버튼 클릭 시 실행되는 함수
+         */
+        function handleSaveConfig() {
+            // 1. 모든 설정 값 수집
+            const config = {
+                modusignApiKey: document.getElementById('modusign-api-key').value,
+                templateId: document.getElementById('template-id').value,
+                googleServiceAccountEmail: document.getElementById('service-account-email').value,
+                googlePrivateKey: document.getElementById('google-private-key').value,
+                uniqueIdentifiers: Array.from(document.querySelectorAll('#datalabel-list input[type="checkbox"]:checked')).map(cb => cb.value)
+            };
+
+            // 2. 유효성 검사
+            if (config.uniqueIdentifiers.length === 0) {
+                showMessage('고유값으로 사용할 필드를 1개 이상 선택해주세요.', 'error');
+                return;
+            }
+            if (!config.googleServiceAccountEmail || !config.googlePrivateKey) {
+                showMessage('Google 서비스 계정 이메일과 비공개 키를 모두 입력해주세요.', 'error');
+                return;
+            }
+
+            // 3. 로딩 상태 표시
+            toggleLoader('save', true);
+            showMessage('설정을 저장하고 페이지를 생성 중입니다...', 'info');
+
+            // 4. (임시) API 호출 시뮬레이션
+            // 실제로는 이 부분에서 Netlify 서버리스 함수를 호출하여 설정 정보를 안전하게 저장하게 됩니다.
+            setTimeout(() => {
+                console.log('저장될 설정 정보:', config);
+                showMessage('설정이 성공적으로 저장되었습니다! 이제 지원서 접수 페이지를 사용할 수 있습니다.', 'success');
+                toggleLoader('save', false);
+            }, 2000); // 2초 지연 시뮬레이션
+        }
+
+        /**
+         * 불러온 데이터 라벨을 화면에 표시하는 함수
+         * @param {string[]} labels - 표시할 데이터 라벨 목록
+         */
+        function displayDataLabels(labels) {
+            datalabelList.innerHTML = ''; // 기존 목록 초기화
+            labels.forEach(label => {
+                if (!label) return; // 데이터 라벨이 없는 경우 건너뛰기
+                const div = document.createElement('div');
+                div.className = 'flex items-center bg-gray-100 p-3 rounded-md';
+                div.innerHTML = `
+                    <input id="cb-${label}" type="checkbox" value="${label}" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="cb-${label}" class="ml-3 block text-sm font-medium text-gray-800">${label}</label>
+                `;
+                datalabelList.appendChild(div);
+            });
+        }
+
+        /**
+         * 버튼의 로딩 상태를 토글하는 함수
+         * @param {'fetch' | 'save'} type - 버튼 종류
+         * @param {boolean} isLoading - 로딩 중인지 여부
+         */
+        function toggleLoader(type, isLoading) {
+            const btn = type === 'fetch' ? fetchBtn : saveBtn;
+            const text = document.getElementById(`${type}-btn-text`);
+            const loader = document.getElementById(`${type}-loader`);
+
+            if (isLoading) {
+                btn.disabled = true;
+                btn.classList.add('cursor-not-allowed', 'opacity-75');
+                text.classList.add('hidden');
+                loader.classList.remove('hidden');
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('cursor-not-allowed', 'opacity-75');
+                text.classList.remove('hidden');
+                loader.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 상태 메시지를 표시하는 함수
+         * @param {string} message - 표시할 메시지
+         * @param {'info' | 'success' | 'error'} type - 메시지 종류
+         */
+        function showMessage(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('hidden', 'bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+            
+            if (type === 'info') {
+                statusMessage.classList.add('bg-blue-100', 'text-blue-800');
+            } else if (type === 'success') {
+                statusMessage.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'error') {
+                statusMessage.classList.add('bg-red-100', 'text-red-800');
+            }
+            
+            statusMessage.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
