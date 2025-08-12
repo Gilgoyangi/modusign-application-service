@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지원서 작성</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .form-input {
+            transition: all 0.3s ease;
+        }
+        .form-input:focus {
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.5);
+            border-color: #3b82f6;
+        }
+        .btn-primary {
+            transition: background-color 0.3s ease;
+        }
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen py-12">
+    <div class="w-full max-w-2xl mx-auto p-6 md:p-8">
+        <div id="main-container" class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="p-8">
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">지원서 작성</h1>
+                <p class="text-gray-500 mb-8">아래 항목을 모두 정확하게 기입해주세요.</p>
+
+                <form id="application-form" class="space-y-6">
+                    </form>
+
+                <div class="mt-8 flex justify-end">
+                    <button id="submit-btn" class="btn-primary bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center">
+                        <span id="submit-btn-text">지원서 제출하기</span>
+                        <div id="submit-loader" class="loader w-4 h-4 rounded-full border-2 border-t-transparent ml-2 hidden"></div>
+                    </button>
+                </div>
+            </div>
+             <div id="status-message" class="px-8 py-4 text-center text-sm font-medium hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 요소 선택 ---
+            const formContainer = document.getElementById('application-form');
+            const mainContainer = document.getElementById('main-container');
+            const submitBtn = document.getElementById('submit-btn');
+            const statusMessage = document.getElementById('status-message');
+
+            // 1. 브라우저 저장소(localStorage)에서 설정 정보 불러오기
+            const savedConfig = localStorage.getItem('modusign_app_config');
+
+            if (!savedConfig) {
+                // 설정 정보가 없으면 에러 메시지 표시
+                mainContainer.innerHTML = `
+                    <div class="p-8 text-center">
+                        <h1 class="text-2xl font-bold text-red-600 mb-4">서비스 설정 필요</h1>
+                        <p class="text-gray-600">아직 관리자 설정이 완료되지 않았습니다.<br>먼저 admin.html 페이지에 접속하여 설정을 완료해주세요.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 2. 설정 정보가 있으면, JSON 형태로 변환하고 폼 생성
+            const config = JSON.parse(savedConfig);
+            generateFormFields(config.allDataLabels);
+
+            // 3. 제출 버튼에 이벤트 리스너 추가
+            submitBtn.addEventListener('click', handleSubmit);
+
+            /**
+             * 저장된 데이터 라벨을 기반으로 HTML 폼 필드를 동적으로 생성하는 함수
+             * @param {string[]} labels - 표시할 데이터 라벨 목록
+             */
+            function generateFormFields(labels) {
+                let fieldsHtml = '';
+                
+                // 템플릿의 텍스트 입력 필드 생성
+                labels.textInputs.forEach(label => {
+                    fieldsHtml += `
+                        <div>
+                            <label for="field-${label}" class="block text-sm font-medium text-gray-600 mb-1">${label}</label>
+                            <input type="text" id="field-${label}" name="${label}" class="form-input block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none" required>
+                        </div>
+                    `;
+                });
+
+                // 템플릿의 첨부파일 입력 필드 생성
+                labels.attachmentInputs.forEach(label => {
+                     fieldsHtml += `
+                        <div>
+                            <label for="field-${label}" class="block text-sm font-medium text-gray-600 mb-1">${label}</label>
+                            <input type="file" id="field-${label}" name="${label}" class="form-input block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
+                        </div>
+                    `;
+                });
+                
+                // 비밀번호 필드 추가 (수정/삭제용)
+                fieldsHtml += `
+                    <div class="border-t pt-6 mt-6">
+                         <label for="password" class="block text-sm font-medium text-gray-600 mb-1">비밀번호 설정</label>
+                         <p class="text-xs text-gray-500 mb-2">나중에 지원서를 수정하거나 삭제할 때 필요합니다.</p>
+                         <input type="password" id="password" name="password" class="form-input block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none" required>
+                    </div>
+                `;
+
+                formContainer.innerHTML = fieldsHtml;
+            }
+
+            /**
+             * '지원서 제출하기' 버튼 클릭 시 실행되는 함수
+             */
+            function handleSubmit(event) {
+                event.preventDefault(); // 폼의 기본 제출 동작 방지
+                
+                // 유효성 검사 (모든 필드가 채워졌는지)
+                const inputs = formContainer.querySelectorAll('input[required]');
+                let allValid = true;
+                inputs.forEach(input => {
+                    if (!input.value) {
+                        allValid = false;
+                    }
+                });
+
+                if (!allValid) {
+                    showMessage('모든 필수 항목을 입력해주세요.', 'error');
+                    return;
+                }
+
+                // 로딩 상태 표시
+                toggleLoader(true);
+                showMessage('지원서를 제출 중입니다. 잠시만 기다려주세요...', 'info');
+
+                // (임시) 제출 시뮬레이션
+                // 실제로는 이 부분에서 입력된 모든 데이터를 Netlify 서버리스 함수로 전송합니다.
+                setTimeout(() => {
+                    const formData = new FormData(formContainer);
+                    console.log('서버로 전송될 데이터:');
+                    for (let [key, value] of formData.entries()) {
+                        console.log(`${key}:`, value);
+                    }
+                    showMessage('지원서가 성공적으로 제출되었습니다. 이메일을 확인하여 서명을 완료해주세요.', 'success');
+                    toggleLoader(false);
+                    formContainer.reset(); // 폼 초기화
+                }, 3000); // 3초 지연 시뮬레이션
+            }
+
+            /**
+             * 버튼의 로딩 상태를 토글하는 함수
+             * @param {boolean} isLoading - 로딩 중인지 여부
+             */
+            function toggleLoader(isLoading) {
+                const text = document.getElementById('submit-btn-text');
+                const loader = document.getElementById('submit-loader');
+                if (isLoading) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('cursor-not-allowed', 'opacity-75');
+                    text.classList.add('hidden');
+                    loader.classList.remove('hidden');
+                } else {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('cursor-not-allowed', 'opacity-75');
+                    text.classList.remove('hidden');
+                    loader.classList.add('hidden');
+                }
+            }
+             /**
+             * 상태 메시지를 표시하는 함수
+             */
+            function showMessage(message, type) {
+                statusMessage.textContent = message;
+                statusMessage.className = 'px-8 py-4 text-center text-sm font-medium'; // 클래스 초기화
+
+                if (type === 'info') {
+                    statusMessage.classList.add('bg-blue-100', 'text-blue-800');
+                } else if (type === 'success') {
+                    statusMessage.classList.add('bg-green-100', 'text-green-800');
+                } else if (type === 'error') {
+                    statusMessage.classList.add('bg-red-100', 'text-red-800');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
