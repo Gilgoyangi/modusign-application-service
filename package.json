@@ -1,0 +1,16 @@
+{
+  "name": "modusign-application-service-functions",
+  "version": "1.0.0",
+  "description": "Serverless functions for the application service.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "google-auth-library": "^8.7.0",
+    "googleapis": "^109.0.1"
+  }
+}
