@@ -119,46 +119,46 @@
             toggleLoader('fetch', true);
             showMessage('템플릿 정보를 불러오는 중입니다...', 'info');
 
-            // 4. (임시) API 호출 시뮬레이션
-            // 실제로는 이 부분에서 Netlify 서버리스 함수를 호출하여 모두싸인 API와 통신하게 됩니다.
-            // 지금은 개발 초기 단계이므로, 성공적인 응답을 받았다고 가정하고 가짜 데이터를 사용합니다.
-            setTimeout(() => {
-                const fakeResponse = {
-                    success: true,
-                    data: {
-                        requesterInputs: [
-                            { dataLabel: '지원자명' },
-                            { dataLabel: '연락처' },
-                            { dataLabel: '이메일' },
-                            { dataLabel: '지원동기' }
-                        ],
-                        participants: [
-                            {
-                                role: '지원자',
-                                attachmentRequests: [
-                                    { dataLabel: '포트폴리오' },
-                                    { dataLabel: '경력증명서' }
-                                ]
+            // 4. Netlify 서버리스 함수 호출
+            fetch('/.netlify/functions/get-template-details', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ apiKey, templateId })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    const templateData = result.data;
+                    // 텍스트 입력 필드와 첨부파일 요청 필드의 dataLabel을 모두 추출합니다.
+                    const textInputs = templateData.requesterInputs.map(item => item.dataLabel);
+                    let attachmentInputs = [];
+                    if (templateData.participants && templateData.participants.length > 0) {
+                         // 모든 참여자의 첨부파일 요청을 하나로 합칩니다.
+                        templateData.participants.forEach(p => {
+                            if(p.attachmentRequests && p.attachmentRequests.length > 0) {
+                                attachmentInputs = attachmentInputs.concat(p.attachmentRequests.map(item => item.dataLabel));
                             }
-                        ]
+                        });
                     }
-                };
-
-                if (fakeResponse.success) {
-                    const allDataLabels = [
-                        ...fakeResponse.data.requesterInputs.map(item => item.dataLabel),
-                        ...fakeResponse.data.participants[0].attachmentRequests.map(item => item.dataLabel)
-                    ];
-                    
+            
+                    // 추출한 데이터 라벨 정보를 객체로 묶습니다.
+                    const allDataLabels = { textInputs, attachmentInputs };
+            
                     displayDataLabels(allDataLabels);
                     showMessage('템플릿 정보를 성공적으로 불러왔습니다. 고유값을 선택해주세요.', 'success');
                     datalabelSection.classList.remove('hidden');
                 } else {
-                    showMessage('템플릿 정보를 불러오는 데 실패했습니다. API Key와 템플릿 ID를 확인해주세요.', 'error');
+                    showMessage(`오류: ${result.message || '템플릿 정보를 불러오는 데 실패했습니다.'}`, 'error');
                 }
-                
+            })
+            .catch(error => {
+                showMessage(`네트워크 오류가 발생했습니다: ${error.message}`, 'error');
+            })
+            .finally(() => {
                 toggleLoader('fetch', false);
-            }, 2000); // 2초 지연 시뮬레이션
+            });
         }
 
         /**
