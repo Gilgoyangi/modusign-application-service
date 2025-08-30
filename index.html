@@ -139,18 +139,37 @@
                 toggleLoader(true);
                 showMessage('지원서를 제출 중입니다. 잠시만 기다려주세요...', 'info');
 
-                // (임시) 제출 시뮬레이션
-                // 실제로는 이 부분에서 입력된 모든 데이터를 Netlify 서버리스 함수로 전송합니다.
-                setTimeout(() => {
-                    const formData = new FormData(formContainer);
-                    console.log('서버로 전송될 데이터:');
-                    for (let [key, value] of formData.entries()) {
-                        console.log(`${key}:`, value);
+                // 실제 서버(Netlify Function)로 폼 데이터 전송
+                const formData = new FormData(formContainer);
+                
+                // 고유값 필드들의 값을 조합하여 하나의 문자열로 만듭니다.
+                const config = JSON.parse(localStorage.getItem('modusign_app_config'));
+                const uniqueIdentifierValue = config.uniqueIdentifiers
+                    .map(label => formData.get(label))
+                    .join('_'); // 예: "홍길동_010-1234-5678"
+                
+                formData.append('uniqueIdentifier', uniqueIdentifierValue);
+                
+                
+                fetch('/.netlify/functions/submit-application', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        showMessage('지원서가 성공적으로 제출되었습니다. 이메일을 확인하여 서명을 완료해주세요.', 'success');
+                        formContainer.reset();
+                    } else {
+                        showMessage(`제출 실패: ${result.message || '알 수 없는 오류가 발생했습니다.'}`, 'error');
                     }
-                    showMessage('지원서가 성공적으로 제출되었습니다. 이메일을 확인하여 서명을 완료해주세요.', 'success');
+                })
+                .catch(error => {
+                    showMessage(`네트워크 오류: ${error.message}`, 'error');
+                })
+                .finally(() => {
                     toggleLoader(false);
-                    formContainer.reset(); // 폼 초기화
-                }, 3000); // 3초 지연 시뮬레이션
+                });
             }
 
             /**
